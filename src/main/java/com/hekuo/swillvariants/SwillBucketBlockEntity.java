@@ -2,6 +2,7 @@ package com.hekuo.swillvariants;
 
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.block.ComposterBlock;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.FoodComponent;
@@ -10,6 +11,7 @@ import net.minecraft.inventory.Inventories;
 import net.minecraft.inventory.SidedInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.item.BlockItem;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.network.packet.Packet;
@@ -80,7 +82,7 @@ public final class SwillBucketBlockEntity extends BlockEntity implements SidedIn
     public boolean useItem(ItemStack stack, PlayerEntity player, Hand hand) {
         if (world == null || stack.isEmpty()) return false;
         if (player.isSneaking()) return takeTop(player);
-        if (isFull() || !isFood(stack)) return false;
+        if (isFull() || !canCompost(stack)) return false;
         if (!world.isClient) {
             ItemStack inserted = stack.copyWithCount(1);
             foods.set(firstEmptySlot(), inserted);
@@ -103,16 +105,26 @@ public final class SwillBucketBlockEntity extends BlockEntity implements SidedIn
             }
             return true;
         }
-        if (!isFull() || !player.canConsume(false)) return false;
+        if (!isFull() || !isFoodPoolLocked() || !player.canConsume(false)) return false;
         if (!world.isClient) {
             ensurePool();
             int missing = 20 - player.getHungerManager().getFoodLevel();
-            int eaten = Math.min(Math.max(1, missing), nutritionPool);
-            float saturation = nutritionPool == 0 ? 0 : saturationPool * eaten / nutritionPool;
+            int targetNutrition = Math.min(Math.max(1, missing), (int) nutritionPool);
+            int oldLevel = sizeUsed();
+            int remainingLevel = oldLevel;
+            while (remainingLevel > 0 && nutritionForLayers(remainingLevel - 1) >= nutritionPool - targetNutrition) {
+                remainingLevel--;
+            }
+            Pool before = calculatePool();
+            Pool after = calculatePool(remainingLevel);
+            int eaten = Math.max(0, before.nutrition - after.nutrition);
+            float saturation = Math.max(0.0F, before.saturation - after.saturation);
             player.getHungerManager().add(eaten, eaten == 0 ? 0 : saturation / eaten / 2.0F);
-            nutritionPool -= eaten;
-            saturationPool = Math.max(0, saturationPool - saturation);
-            if (nutritionPool <= 0) clear(); else changedWithPulse();
+            for (int i = remainingLevel; i < CAPACITY; i++) foods.set(i, ItemStack.EMPTY);
+            if (remainingLevel == 0) clear(); else {
+                resetPool();
+                changedWithPulse();
+            }
             world.playSound(null, pos, SoundEvents.ENTITY_GENERIC_EAT, SoundCategory.PLAYERS, .8F, 1F);
         }
         return true;
@@ -132,16 +144,47 @@ public final class SwillBucketBlockEntity extends BlockEntity implements SidedIn
 
     private void ensurePool() {
         if (nutritionPool > 0) return;
-        for (ItemStack stack : foods) {
-            FoodComponent food = stack.get(DataComponentTypes.FOOD);
-            if (food != null) {
-                nutritionPool += food.nutrition();
-                saturationPool += food.saturation();
-            }
-        }
+        Pool pool = calculatePool();
+        nutritionPool = pool.nutrition;
+        saturationPool = pool.saturation;
     }
 
-    private static boolean isFood(ItemStack stack) { return stack.contains(DataComponentTypes.FOOD); }
+    private boolean isFoodPoolLocked() { return isFull() && calculatePool().nutrition > 0; }
+
+    private static boolean canCompost(ItemStack stack) {
+        return stack.contains(DataComponentTypes.FOOD)
+                || ComposterBlock.ITEM_TO_LEVEL_INCREASE_CHANCE.getFloat(stack.getItem()) > 0.0F;
+    }
+
+    private Pool calculatePool() {
+        return calculatePool(sizeUsed());
+    }
+
+    private int nutritionForLayers(int layers) { return calculatePool(layers).nutrition; }
+
+    private Pool calculatePool(int layers) {
+        int foodNutrition = 0;
+        float foodSaturation = 0.0F;
+        int compostableItems = 0;
+        int compostableBlocks = 0;
+        for (int i = 0; i < Math.min(layers, CAPACITY); i++) {
+            ItemStack stack = foods.get(i);
+            if (stack.isEmpty()) continue;
+            FoodComponent food = stack.get(DataComponentTypes.FOOD);
+            if (food != null) {
+                foodNutrition += food.nutrition();
+                foodSaturation += food.saturation();
+            } else if (stack.getItem() instanceof BlockItem) {
+                compostableBlocks++;
+            } else {
+                compostableItems++;
+            }
+        }
+        int servings = (compostableItems + 3) / 4 + (compostableBlocks + 2) / 3;
+        return new Pool(foodNutrition + servings, foodSaturation + servings * 0.5F);
+    }
+
+    private record Pool(int nutrition, float saturation) {}
     private boolean isFull() { return sizeUsed() >= CAPACITY; }
     private int sizeUsed() { int count = 0; for (ItemStack stack : foods) if (!stack.isEmpty()) count++; return count; }
     private int firstEmptySlot() { for (int i = 0; i < CAPACITY; i++) if (foods.get(i).isEmpty()) return i; return -1; }
@@ -201,7 +244,7 @@ public final class SwillBucketBlockEntity extends BlockEntity implements SidedIn
     }
 
     @Override public int[] getAvailableSlots(Direction side) { return SLOTS; }
-    @Override public boolean canInsert(int slot, ItemStack stack, Direction dir) { return !isFull() && isFood(stack); }
+    @Override public boolean canInsert(int slot, ItemStack stack, Direction dir) { return !isFull() && canCompost(stack); }
     @Override public boolean canExtract(int slot, ItemStack stack, Direction dir) { return dir != Direction.UP && slot == lastOccupiedSlot(); }
     @Override public int size() { return CAPACITY; }
     @Override public boolean isEmpty() { return sizeUsed() == 0; }
