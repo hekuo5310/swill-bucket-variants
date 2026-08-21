@@ -1,6 +1,6 @@
 # Swill Bucket Variants
 
-独立重写的 Fabric 1.21.1 泔水桶模组，不依赖 Brainlayers 或 NeoForge。
+独立重写的 Fabric 1.21.1 泔水桶模组，灵感来源[我说拿堆肥桶当饭桶是对的](https://www.bilibili.com/video/BV15Jbi6TE1z)
 
 ## 功能
 
