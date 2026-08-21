@@ -4,6 +4,7 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.ComposterBlock;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.FoodComponent;
 import net.minecraft.entity.player.PlayerEntity;
@@ -48,7 +49,7 @@ public final class SwillBucketBlockEntity extends BlockEntity implements SidedIn
                 serverWorld.spawnParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE,
                         pos.getX() + .5, pos.getY() + 1.05, pos.getZ() + .5, 1, .12, .03, .12, .002);
             }
-            if (bucket.heatTicks >= 200) {
+            if (bucket.heatTicks >= 600) {
                 bucket.heatTicks = 0;
                 bucket.cookOne(serverWorld);
             }
@@ -57,7 +58,7 @@ public final class SwillBucketBlockEntity extends BlockEntity implements SidedIn
 
     private static boolean isHot(BlockState state) {
         return state.isOf(Blocks.FIRE) || state.isOf(Blocks.SOUL_FIRE) || state.isOf(Blocks.LAVA)
-                || state.isOf(Blocks.MAGMA_BLOCK) || state.isOf(Blocks.CAMPFIRE) || state.isOf(Blocks.SOUL_CAMPFIRE);
+                || state.isOf(Blocks.MAGMA_BLOCK) || state.isIn(BlockTags.CAMPFIRES);
     }
 
     private void cookOne(ServerWorld world) {
@@ -81,6 +82,10 @@ public final class SwillBucketBlockEntity extends BlockEntity implements SidedIn
 
     public boolean useItem(ItemStack stack, PlayerEntity player, Hand hand) {
         if (world == null || stack.isEmpty()) return false;
+        if (isFoodPoolLocked()) {
+            if (player.isSneaking()) return produceBoneMeal(player);
+            return feedPlayer(player);
+        }
         if (player.isSneaking()) return takeTop(player);
         if (isFull() || !canCompost(stack)) return false;
         if (!world.isClient) {
@@ -96,37 +101,66 @@ public final class SwillBucketBlockEntity extends BlockEntity implements SidedIn
 
     public boolean useEmptyHand(PlayerEntity player) {
         if (world == null || isEmpty()) return false;
-        if (player.isSneaking()) {
-            if (!isFull()) return takeTop(player);
-            if (!world.isClient) {
-                player.getInventory().offerOrDrop(new ItemStack(Items.BONE_MEAL));
-                clear();
-                world.playSound(null, pos, SoundEvents.BLOCK_COMPOSTER_READY, SoundCategory.BLOCKS, 1F, 1F);
-            }
-            return true;
+        if (isFoodPoolLocked()) {
+            if (player.isSneaking()) return produceBoneMeal(player);
+            return feedPlayer(player);
         }
-        if (!isFull() || !isFoodPoolLocked() || !player.canConsume(false)) return false;
+        if (player.isSneaking()) {
+            return takeTop(player);
+        }
+        return feedPlayer(player);
+    }
+
+    private boolean produceBoneMeal(PlayerEntity player) {
+        if (!world.isClient) {
+            player.getInventory().offerOrDrop(new ItemStack(Items.BONE_MEAL));
+            clear();
+            world.playSound(null, pos, SoundEvents.BLOCK_COMPOSTER_EMPTY, SoundCategory.BLOCKS, 1F, 1F);
+            if (world instanceof ServerWorld serverWorld) serverWorld.syncWorldEvent(1500, pos, 0);
+        }
+        return true;
+    }
+
+    private boolean feedPlayer(PlayerEntity player) {
+        if (!isFoodPoolLocked()) return false;
         if (!world.isClient) {
             ensurePool();
-            int missing = 20 - player.getHungerManager().getFoodLevel();
-            int targetNutrition = Math.min(Math.max(1, missing), (int) nutritionPool);
-            int oldLevel = sizeUsed();
-            int remainingLevel = oldLevel;
-            while (remainingLevel > 0 && nutritionForLayers(remainingLevel - 1) >= nutritionPool - targetNutrition) {
-                remainingLevel--;
-            }
+            int missing = Math.max(0, 20 - player.getHungerManager().getFoodLevel());
+            if (missing == 0) return consumeTop(player);
             Pool before = calculatePool();
-            Pool after = calculatePool(remainingLevel);
-            int eaten = Math.max(0, before.nutrition - after.nutrition);
-            float saturation = Math.max(0.0F, before.saturation - after.saturation);
-            player.getHungerManager().add(eaten, eaten == 0 ? 0 : saturation / eaten / 2.0F);
-            for (int i = remainingLevel; i < CAPACITY; i++) foods.set(i, ItemStack.EMPTY);
-            if (remainingLevel == 0) clear(); else {
-                resetPool();
-                changedWithPulse();
+            int remaining = sizeUsed();
+            Pool after = before;
+            while (remaining > 0 && before.nutrition - after.nutrition < missing) {
+                after = calculatePool(--remaining);
             }
-            world.playSound(null, pos, SoundEvents.ENTITY_GENERIC_EAT, SoundCategory.PLAYERS, .8F, 1F);
+            int eaten = Math.max(0, before.nutrition - after.nutrition);
+            if (eaten <= 0) return false;
+            float saturation = Math.max(0, before.saturation - after.saturation);
+            int foodLevel = Math.min(20, player.getHungerManager().getFoodLevel() + Math.min(missing, eaten));
+            player.getHungerManager().setFoodLevel(foodLevel);
+            player.getHungerManager().setSaturationLevel(
+                    Math.min(foodLevel, player.getHungerManager().getSaturationLevel() + saturation));
+            for (int i = remaining; i < CAPACITY; i++) foods.set(i, ItemStack.EMPTY);
+            if (remaining == 0) clear(); else { resetPool(); changedWithPulse(); }
+            world.playSound(null, pos, SoundEvents.ENTITY_GENERIC_EAT, SoundCategory.PLAYERS, .8F, .95F);
         }
+        return true;
+    }
+
+    private boolean consumeTop(PlayerEntity player) {
+        int slot = lastOccupiedSlot();
+        if (slot < 0) return false;
+        ItemStack consumed = foods.get(slot);
+        FoodComponent food = consumed.get(DataComponentTypes.FOOD);
+        if (food != null) {
+            player.getHungerManager().setSaturationLevel(
+                    Math.min(player.getHungerManager().getFoodLevel(),
+                            player.getHungerManager().getSaturationLevel() + food.saturation()));
+        }
+        foods.set(slot, ItemStack.EMPTY);
+        resetPool();
+        if (sizeUsed() == 0) clear(); else changedWithPulse();
+        world.playSound(null, pos, SoundEvents.ENTITY_GENERIC_EAT, SoundCategory.PLAYERS, .8F, .95F);
         return true;
     }
 
@@ -159,8 +193,6 @@ public final class SwillBucketBlockEntity extends BlockEntity implements SidedIn
     private Pool calculatePool() {
         return calculatePool(sizeUsed());
     }
-
-    private int nutritionForLayers(int layers) { return calculatePool(layers).nutrition; }
 
     private Pool calculatePool(int layers) {
         int foodNutrition = 0;
