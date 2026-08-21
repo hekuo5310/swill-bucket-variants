@@ -1,0 +1,10 @@
+{
+  "block.swill_bucket_variants.swill_bucket": "Swill Bucket",
+  "block.swill_bucket_variants.exposed_swill_bucket": "Exposed Swill Bucket",
+  "block.swill_bucket_variants.weathered_swill_bucket": "Weathered Swill Bucket",
+  "block.swill_bucket_variants.oxidized_swill_bucket": "Oxidized Swill Bucket",
+  "block.swill_bucket_variants.waxed_swill_bucket": "Waxed Swill Bucket",
+  "block.swill_bucket_variants.waxed_exposed_swill_bucket": "Waxed Exposed Swill Bucket",
+  "block.swill_bucket_variants.waxed_weathered_swill_bucket": "Waxed Weathered Swill Bucket",
+  "block.swill_bucket_variants.waxed_oxidized_swill_bucket": "Waxed Oxidized Swill Bucket"
+}

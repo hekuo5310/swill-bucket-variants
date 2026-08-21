@@ -1,0 +1,10 @@
+{
+  "parent":"swill_bucket_variants:block/advanced_composter_frame",
+  "textures":{
+    "particle":"swill_bucket_variants:block/weathered_swill_bucket_side",
+    "top":"swill_bucket_variants:block/weathered_swill_bucket_top",
+    "bottom":"swill_bucket_variants:block/weathered_swill_bucket_bottom",
+    "side":"swill_bucket_variants:block/weathered_swill_bucket_side",
+    "inside":"swill_bucket_variants:block/weathered_swill_bucket_bottom"
+  }
+}

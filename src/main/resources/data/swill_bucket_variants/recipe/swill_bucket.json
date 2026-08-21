@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": ["CCC", "CBC", "CCC"],
+  "key": {
+    "C": {"item": "minecraft:copper_ingot"},
+    "B": {"item": "minecraft:composter"}
+  },
+  "result": {"id": "swill_bucket_variants:swill_bucket", "count": 1}
+}

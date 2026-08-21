@@ -1,0 +1,10 @@
+{
+  "block.swill_bucket_variants.swill_bucket": "泔水桶",
+  "block.swill_bucket_variants.exposed_swill_bucket": "斑驳的泔水桶",
+  "block.swill_bucket_variants.weathered_swill_bucket": "锈蚀的泔水桶",
+  "block.swill_bucket_variants.oxidized_swill_bucket": "氧化的泔水桶",
+  "block.swill_bucket_variants.waxed_swill_bucket": "涂蜡的泔水桶",
+  "block.swill_bucket_variants.waxed_exposed_swill_bucket": "涂蜡的斑驳泔水桶",
+  "block.swill_bucket_variants.waxed_weathered_swill_bucket": "涂蜡的锈蚀泔水桶",
+  "block.swill_bucket_variants.waxed_oxidized_swill_bucket": "涂蜡的氧化泔水桶"
+}

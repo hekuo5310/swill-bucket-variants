@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "swill_bucket_variants",
+  "version": "${version}",
+  "name": "Swill Bucket Variants",
+  "description": "Independent Fabric 1.21.1 swill bucket and oxidation variants.",
+  "authors": ["hekuo"],
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.hekuo.swillvariants.SwillBucketVariants"],
+    "client": ["com.hekuo.swillvariants.client.SwillBucketVariantsClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.5",
+    "fabric-api": "*",
+    "minecraft": "1.21.1",
+    "java": ">=21"
+  }
+}

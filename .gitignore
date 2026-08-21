@@ -1,0 +1,14 @@
+.gradle/
+build/
+run-*/
+decompiled/
+*.javap.txt
+/.class,com/
+/com/
+/net/
+/assets/
+/data/
+/META-INF/
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+*.log
